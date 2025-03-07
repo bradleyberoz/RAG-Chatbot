@@ -1,5 +1,15 @@
+###############################################
+##########        DESCRIPTION        ##########
+###############################################
+#
+# This script implements a Medical Chatbot that:
+#     - Takes a medical question from the user
+#     - Converts it to a searchable query using OpenAI's GPT model
+#     - Retrieves relevant medical research articles from PubMed API
+#     - Returns a list of PMIDs (PubMed IDs) for these articles
+
 ##############################################
-#########          IMPORTS          ##########
+######     PREPROCESSOR DIRECTIVES     #######
 ##############################################
 import json
 import requests
@@ -8,28 +18,16 @@ from dotenv import load_dotenv  # used to access environment variable for openai
 from openai import OpenAI       # LLM processing
 import xml.etree.ElementTree as ET
 
-###############################################
-#########          DESCRIPTION        #########
-###############################################
-#
-# This script implements a Medical Chatbot that:
-#     - Takes a medical question from the user
-#     - Converts it to a searchable query using OpenAI's GPT model
-#     - Retrieves relevant medical research articles from PubMed API
-#     - Returns a list of PMIDs (PubMed IDs) for these articles
-#
-###############################################
-
 ##############################################
 #########      GLOBAL VARIBLES      ##########
 ##############################################
-errStatus = False                             # Error status variable
+errStatus = False                      # Error status variable
 
 # Load openai key into project
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")  # Retrieve environment variable
 
-client = OpenAI(api_key=api_key) #Initialize OpenAI client
+client = OpenAI(api_key=api_key)       # Initialize OpenAI client
 
 ##############################################
 #########    FUNCTION DEFINITIONS   ##########
@@ -125,7 +123,12 @@ def ErrorHandler():
     # Potential error handling module?
     print("Error")
 
-# Main function to test the workflow
+"""
+Description:  Main method 
+Inputs:       None
+Ouputs:       None
+Returns       None
+"""
 def main():
     print("Welcome to the Medical Chatbot!")
     
