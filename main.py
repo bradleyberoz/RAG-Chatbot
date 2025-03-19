@@ -35,13 +35,20 @@ def setup_AI(articles_path):
     document_store.write_documents(documents)
 
     prompt_template = """
-    Using the provided documents, answer the question.
+    You are a scientific research assistant. Provide accurate, detailed answers based on the provided documents.
     Provide a short answer and a long answer.
     Also provide with documents you used information from
-    Documents:
+    
+    Context:
     {% for doc in documents %}
-        {{ doc.meta.pmid }}:{{ doc.content }}
+    ---
+    Document ID: {{ doc.meta.pmid }}
+    Title: {{ doc.meta.title }}
+    
+    Content:
+    {{ doc.content }}
     {% endfor %}
+            
     Question: {{question}}
     Answer:
     """
