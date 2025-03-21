@@ -6,6 +6,7 @@ import requests
 import os                       # used to access environment variable for openai
 from dotenv import load_dotenv  # used to access environment variable for openai
 from openai import OpenAI       # LLM processing
+from metapub import PubMedFetcher
 import xml.etree.ElementTree as ET
 
 ###############################################
@@ -121,6 +122,37 @@ def RAG_RetrievePubMedArticles(searchable_query, max_results=10):
     # Return a list of PMIDs
     return pmids
 
+""" 
+Description:  Fetches and parses PubMed article information based on the PMID.
+Inputs:       pmid      - The PubMed ID of the article.
+Ouputs:       None
+Returns       dict      - A dictionary containing the PMID as the key and the title, MeSH terms, and abstract as values
+"""
+def RAG_RetrieveArticleDetails(pmid):
+    fetch = PubMedFetcher()
+    try:
+        article = fetch.article_by_pmid(pmid)
+        
+        # Extract Title
+        title = article.title
+        
+        # Extract Abstract
+        abstract_text = article.abstract
+        
+        # Create JSON response
+        response = {
+            str(pmid): {
+                "title": title,
+                "abstract": abstract_text
+            }
+        }
+        
+        return response
+    
+    except Exception as e:
+        print(f"Error fetching article for PMID {pmid}: {e}")
+        return {}
+
 def ErrorHandler():
     # Potential error handling module?
     print("Error")
@@ -146,12 +178,18 @@ def main():
     print(f"Searchable Query: {searchable_query}")
     
     # Retrieve articles from PubMed
-    articles = RAG_RetrievePubMedArticles(searchable_query)
+    pmids = RAG_RetrievePubMedArticles(searchable_query)
     
     print("\nRetrieved Articles:")
     
+    # Fetch detailed information for each PMID
+    articles_info = {}
+    for pmid in pmids:
+        article_info = RAG_RetrieveArticleDetails(pmid)
+        articles_info.update(article_info)
+    
     # Pretty-print the articles into json objects
-    print(json.dumps(articles, indent=2))
+    print(json.dumps(articles_info, indent=4))
 
 # Run the main function
 if __name__ == "__main__":
