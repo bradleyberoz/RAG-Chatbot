@@ -35,9 +35,12 @@ def setup_AI(articles_path):
     document_store.write_documents(documents)
 
     prompt_template = """
-    You are a scientific research assistant. Provide accurate, detailed answers based on the provided documents.
-    Provide a short answer and a long answer.
-    Also provide with documents you used information from
+    You are an expert scientific research assistant. Your answers must be:
+    - Factually accurate based solely on the provided context
+    - Detailed and comprehensive
+    - Include citations to the source documents
+    
+    If the context doesn't contain enough information to answer properly, say "I don't have enough information to answer this question definitively."
     
     Context:
     {% for doc in documents %}
@@ -69,7 +72,7 @@ def setup_AI(articles_path):
 def ask_AI(question):
     results = rag_pipeline.run(
         {
-            "retriever": {"query": question},
+            "retriever": {"query": question, "top_k": 15},
             "prompt_builder": {"question": question},
         }
     )
@@ -81,8 +84,13 @@ def main():
     articleJSON = "data.json"
     setup_AI(articleJSON)
 
-    question = input("question: ")
-    answer = ask_AI( question)
+    while True:
+        question = input("question: ")
+        if question.strip() == "end":
+            break
+        answer = ask_AI( question)
+        
+        
 
     print(answer)
 
