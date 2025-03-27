@@ -15,14 +15,15 @@ def create_documents(articleJSON):
         articles = json.load(f)
 
     documents = []
-    for article in articles:
+    for id in articles:
+        article = articles.get(id)
         doc = Document(
             content=article["abstract"],
             meta={
-                "pmid": article["pmid"],
-                "authors": article["authors"],
+                "pmid": id,
+                # "authors": article["authors"],
                 "title": article["title"],
-                "publication_year": article["publication_year"],
+                # "publication_year": article["publication_year"],
             },
         )
         documents.append(doc)
@@ -81,7 +82,7 @@ def ask_AI(question):
 
 
 def main():
-    articleJSON = "data.json"
+    articleJSON = "articles.json"
     setup_AI(articleJSON)
 
     while True:
@@ -89,10 +90,7 @@ def main():
         if question.strip() == "end":
             break
         answer = ask_AI( question)
-        
-        
-
-    print(answer)
+        print(answer)       
 
 
 if __name__ == "__main__":
