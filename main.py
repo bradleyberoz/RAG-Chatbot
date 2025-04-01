@@ -194,6 +194,9 @@ def main():
     # Pretty-print the articles into json objects
     print(json.dumps(articles_info, indent=4))
 
+    with open('articles.json', 'w') as json_file:
+      json.dump(articles_info, json_file, indent=4)
+
 # Run the main function
 if __name__ == "__main__":
     main()
