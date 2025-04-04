@@ -1,39 +1,39 @@
 import json
-from dotenv import load_dotenv
 
-from haystack import Pipeline, Document
-from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
-from haystack.components.generators import OpenAIGenerator
+from dotenv import load_dotenv
+from haystack import Document, Pipeline
 from haystack.components.builders.prompt_builder import PromptBuilder
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
+from haystack.components.evaluators import (
+    ContextRelevanceEvaluator,
+    DocumentMAPEvaluator,
+    FaithfulnessEvaluator,
+)
+from haystack.components.generators import OpenAIGenerator
+from haystack.components.retrievers.in_memory import (
+    InMemoryBM25Retriever,
+    InMemoryEmbeddingRetriever,
+)
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from document_builders import build_pubmedapi_documents
 
 load_dotenv()
 
 
-def create_documents(articleJSON):
-    with open(articleJSON, "r") as f:
-        articles = json.load(f)
+def setup_AI(documents):
 
-    documents = []
-    for id in articles:
-        article = articles.get(id)
-        doc = Document(
-            content=article["abstract"],
-            meta={
-                "pmid": id,
-                # "authors": article["authors"],
-                "title": article["title"],
-                # "publication_year": article["publication_year"],
-            },
-        )
-        documents.append(doc)
-    return documents
+    document_embedder = SentenceTransformersDocumentEmbedder(
+        model="sentence-transformers/all-MiniLM-L6-v2"
+    )
+    document_embedder.warm_up()
 
+    documnets_with_embeddings = document_embedder.run(documents)
 
-def setup_AI(articles_path):
-    documents = create_documents(articles_path)
     document_store = InMemoryDocumentStore()
-    document_store.write_documents(documents)
+    document_store.write_documents(documnets_with_embeddings["documents"])
 
     prompt_template = """
     You are an expert scientific research assistant. Your answers must be:
@@ -57,40 +57,58 @@ def setup_AI(articles_path):
     Answer:
     """
 
-    retriever = InMemoryBM25Retriever(document_store=document_store)
+    text_embedder = SentenceTransformersTextEmbedder(
+        model="sentence-transformers/all-MiniLM-L6-v2"
+    )
+    retriever = InMemoryEmbeddingRetriever(document_store)
     prompt_builder = PromptBuilder(template=prompt_template)
     llm = OpenAIGenerator()
 
     global rag_pipeline
     rag_pipeline = Pipeline()
+    rag_pipeline.add_component("text_embedder", text_embedder)
     rag_pipeline.add_component("retriever", retriever)
     rag_pipeline.add_component("prompt_builder", prompt_builder)
     rag_pipeline.add_component("llm", llm)
-    rag_pipeline.connect("retriever", "prompt_builder.documents")
-    rag_pipeline.connect("prompt_builder", "llm")
+
+    rag_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+    rag_pipeline.connect("retriever", "prompt_builder")
+    rag_pipeline.connect("prompt_builder.prompt", "llm")
+    return rag_pipeline
 
 
 def ask_AI(question):
     results = rag_pipeline.run(
         {
-            "retriever": {"query": question, "top_k": 15},
+            "text_embedder": {"text": question},
             "prompt_builder": {"question": question},
-        }
+        },
+        include_outputs_from=["retriever"],
     )
+
     response = results["llm"]["replies"][0]
+
+    retrieved_docs = results["retriever"]["documents"]
+    contexts = [doc.content for doc in retrieved_docs]
+    context_evaluator = ContextRelevanceEvaluator()
+    context_relevance_result = context_evaluator.run(
+        questions=[question for _ in range(len(contexts))], contexts=contexts
+    )
+    print(f"Context Relevance Score: {context_relevance_result['score']:.2f}")
+
     return response
 
 
 def main():
     articleJSON = "articles.json"
-    setup_AI(articleJSON)
+    setup_AI(build_pubmedapi_documents(articleJSON))
 
     while True:
         question = input("question: ")
         if question.strip() == "end":
             break
-        answer = ask_AI( question)
-        print(answer)       
+        answer = ask_AI(question)
+        print(answer)
 
 
 if __name__ == "__main__":
