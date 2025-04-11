@@ -89,7 +89,7 @@ Inputs:       searchable_query     - Searchable query string for research articl
 Ouputs:       None
 Returns       pmids                - A .json of PMIDs
 """
-def RAG_RetrievePubMedArticles(searchable_query, max_results=10):
+def RAG_RetrievePubMedArticles(searchable_query, max_results=20):
     # PubMedAPI endpoint
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 
@@ -155,6 +155,42 @@ def ErrorHandler():
     # Potential error handling module?
     print("Error")
 
+def create_test_dataset(test_questions):
+    """
+    Creates a dataset from test questions and their results
+    """
+    dataset = []
+    
+    for question in test_questions:
+        print(f"Processing test question: {question}")
+        
+        # Get user input
+        user_input = question
+        
+        # Process input into searchable query
+        searchable_query = RAG_ProcessInputToSearchable(user_input)
+        
+        # Retrieve and process articles
+        results = RAG_RetrievePubMedArticles(user_input, searchable_query)
+        
+        # Validate results
+        validation = RAG_ValidateResults(user_input, results["relevant_articles"])
+        
+        # Add to dataset
+        dataset.append({
+            "question": question,
+            "searchable_query": searchable_query,
+            "all_articles": results["all_articles"],
+            "relevant_articles": results["relevant_articles"],
+            "validation": validation
+        })
+        
+        # Save dataset after each question (to prevent data loss)
+        with open("medical_chatbot_test_dataset.json", "w") as f:
+            json.dump(dataset, f, indent=4)
+            
+    return dataset
+
 """
 Description:  Main method 
 Inputs:       None
@@ -163,7 +199,7 @@ Returns       None
 """
 def main():
     print("Welcome to the Medical Chatbot!")
-    
+    """
     # Query User Input
     user_input = RAG_QueryUser()
     
@@ -173,26 +209,63 @@ def main():
         return
     
     print(f"User Input: {user_input}")
+    """
+
+    """
+    Processes multiple questions from a file and retrieves PubMed articles for each
+    Uses question mark as delimiter to separate questions
+    """
+
+    file_path = r"C:\Users\bradl\source\repos\RAG-Chatbot\questions.txt"
+
+    # Read the input file
+    with open(file_path, 'r') as file:
+        content = file.read()
     
-    # Process input into a 'searchable query' 
-    # This is what will be inputted into PubMedAPI to search for research articles
-    searchable_query = RAG_ProcessInputToSearchable(user_input)
+    # Split by question mark to get individual questions
+    raw_questions = content.split('?')
     
-    print(f"Searchable Query: {searchable_query}")
+    # Clean up the questions and remove empty ones
+    questions = []
+    for q in raw_questions:
+        q = q.strip()
+        if q:  # Only add non-empty questions
+            questions.append(q + '?')  # Add back the question mark
     
-    # Retrieve articles from PubMed
-    pmids = RAG_RetrievePubMedArticles(searchable_query)
+    print(f"Found {len(questions)} questions to process")
+
+    all_articles_info = {}  # Dictionary to store all articles' information
+
+    for i in questions:
+        # Process input into a 'searchable query' 
+        # This is what will be inputted into PubMedAPI to search for research articles
+        searchable_query = RAG_ProcessInputToSearchable(i)
+        print(f"Searchable Query: {searchable_query}")
     
-    print("\nRetrieved Articles:")
+        # Retrieve articles from PubMed
+        pmids = RAG_RetrievePubMedArticles(searchable_query)
     
-    # Fetch detailed information for each PMID
-    articles_info = {}
-    for pmid in pmids:
-        article_info = RAG_RetrieveArticleDetails(pmid)
-        articles_info.update(article_info)
+        print("\nRetrieved Articles:")
     
-    # Pretty-print the articles into json objects
-    print(json.dumps(articles_info, indent=4))
+        # Fetch detailed information for each PMID
+        articles_info = {}
+        for pmid in pmids:
+            article_info = RAG_RetrieveArticleDetails(pmid)
+            articles_info.update(article_info)
+    
+        # Pretty-print the articles into json objects
+        print(json.dumps(articles_info, indent=4))
+
+        # Add current question's articles info to the main dictionary
+        all_articles_info[i] = articles_info
+    
+    # Save all articles' information to a JSON file
+    output_file_path = "retrieved_articles.json"
+    with open(output_file_path, "w") as json_file:
+        json.dump(all_articles_info, json_file, indent=4)
+    
+    print(f"Articles information has been saved to {output_file_path}")
+    
 
 # Run the main function
 if __name__ == "__main__":
