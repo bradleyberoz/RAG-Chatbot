@@ -24,7 +24,17 @@ load_dotenv()
 
 
 def setup_AI(documents):
+    """
+    Sets up a RAG (Retrieval-Augmented Generation) pipeline
 
+    Args:
+        documents: List of documents to be indexed and used for retrieval
+
+    Returns:
+        A configured RAG pipeline ready for question answering
+    """
+
+    # prep and write document store
     document_embedder = SentenceTransformersDocumentEmbedder(
         model="sentence-transformers/all-MiniLM-L6-v2"
     )
@@ -35,6 +45,7 @@ def setup_AI(documents):
     document_store = InMemoryDocumentStore()
     document_store.write_documents(documnets_with_embeddings["documents"])
 
+    # prompt template
     prompt_template = """
     You are an expert scientific research assistant. Your answers must be:
     - Factually accurate based solely on the provided context
@@ -64,6 +75,7 @@ def setup_AI(documents):
     prompt_builder = PromptBuilder(template=prompt_template)
     llm = OpenAIGenerator()
 
+    # build pipeline
     global rag_pipeline
     rag_pipeline = Pipeline()
     rag_pipeline.add_component("text_embedder", text_embedder)
