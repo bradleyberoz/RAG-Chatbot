@@ -267,6 +267,9 @@ def main():
     print(f"Articles information has been saved to {output_file_path}")
     
 
+    with open('articles.json', 'w') as json_file:
+      json.dump(articles_info, json_file, indent=4)
+
 # Run the main function
 if __name__ == "__main__":
     main()
