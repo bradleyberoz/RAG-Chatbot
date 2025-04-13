@@ -3,7 +3,7 @@ import json
 from dotenv import load_dotenv
 
 import document_builders
-import main as rag
+import rag
 
 load_dotenv()
 
