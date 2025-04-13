@@ -45,34 +45,52 @@ def setup_AI(documents):
     document_store = InMemoryDocumentStore()
     document_store.write_documents(documnets_with_embeddings["documents"])
 
-    # prompt template
-    prompt_template = """
-    You are an expert scientific research assistant. Your answers must be:
-    - Factually accurate based solely on the provided context
-    - Detailed and comprehensive
-    - Include citations to the source documents
-    
-    If the context doesn't contain enough information to answer properly, say "I don't have enough information to answer this question definitively."
-    
-    Context:
-    {% for doc in documents %}
-    ---
-    Document ID: {{ doc.meta.pmid }}
-    Title: {{ doc.meta.title }}
-    
-    Content:
-    {{ doc.content }}
-    {% endfor %}
+    # prompt templates
+    global prompt_templates
+    prompt_templates = {
+        "open": """
+            You are an expert scientific research assistant. Your answers must be:
+            - Factually accurate based solely on the provided context
+            - Detailed and comprehensive
+            - Include citations to the source documents
             
-    Question: {{question}}
-    Answer:
-    """
+            If the context doesn't contain enough information to answer properly, say "I don't have enough information to answer this question definitively."
+            
+            Context:
+            {% for doc in documents %}
+            ---
+            Document ID: {{ doc.meta.pmid }}
+            Title: {{ doc.meta.title }}
+            
+            Content:
+            {{ doc.content }}
+            {% endfor %}
+                    
+            Question: {{question}}
+            Answer:
+            """,
+        "yes_no": """
+            Answer the question based on the provided PubMed abstracts.
+            Your answer should be one of: 'yes', 'no', or 'maybe'.
+
+            Also provide the full reasoning for your answer.
+
+            Context:
+            {% for doc in documents %}
+                {{ doc.content }}
+            {% endfor %}
+
+            Question: {{question}}
+
+            Answer:
+            """,
+    }
 
     text_embedder = SentenceTransformersTextEmbedder(
         model="sentence-transformers/all-MiniLM-L6-v2"
     )
     retriever = InMemoryEmbeddingRetriever(document_store)
-    prompt_builder = PromptBuilder(template=prompt_template)
+    prompt_builder = PromptBuilder(template=prompt_templates["open"])
     llm = OpenAIGenerator()
 
     # build pipeline
@@ -89,65 +107,90 @@ def setup_AI(documents):
     return rag_pipeline
 
 
-def ask_AI(question, question_type="open"):
-    if question_type == "open":
-        prompt_template = """
-        You are an expert scientific research assistant. Your answers must be:
-        - Factually accurate based solely on the provided context
-        - Detailed and comprehensive
-        - Include citations to the source documents
-        
-        If the context doesn't contain enough information to answer properly, say "I don't have enough information to answer this question definitively."
-        
-        Context:
-        {% for doc in documents %}
-        ---
-        Document ID: {{ doc.meta.pmid }}
-        Title: {{ doc.meta.title }}
-        
-        Content:
-        {{ doc.content }}
-        {% endfor %}
-                
-        Question: {{question}}
-        Answer:
-        """
-    elif question_type == "yes_no":
-        prompt_template = """
-        Answer the question based on the provided PubMed abstracts.
-        Your answer should be one of: 'yes', 'no', or 'maybe'.
+def ask_AI(question: str, question_type="open"):
+    results = run_pipline(question, question_type)
 
-        Also provide the full reasoning for your answer.
+    response = results["llm"]["replies"][0]
 
-        Context:
-        {% for doc in documents %}
-            {{ doc.content }}
-        {% endfor %}
+    return response
 
-        Question: {{question}}
 
-        Answer:
-        """
-
-    results = rag_pipeline.run(
+def run_pipline(question, question_type="open"):
+    template = prompt_templates[question_type]
+    return rag_pipeline.run(
         {
             "text_embedder": {"text": question},
-            "prompt_builder": {"question": question, "template": prompt_template},
+            "prompt_builder": {"question": question, "template": template},
         },
         include_outputs_from=["retriever"],
     )
 
-    response = results["llm"]["replies"][0]
 
-    retrieved_docs = results["retriever"]["documents"]
+def eval_AI(question: str, question_type="open", correct_answer=None):
+    result = run_pipline(question, question_type)
+
+    response = result["llm"]["replies"][0]
+
+    if question_type == "yes_no":
+        first_line = response.splitlines()[0].lower()
+        yes_no_answer = "maybe"
+        if "yes" in first_line:
+            yes_no_answer = "yes"
+        elif "no" in first_line:
+            yes_no_answer = "no"
+    else:
+        yes_no_answer = None
+
+    # Retrieval evaluation
+    retrieved_docs = result["retriever"]["documents"]
     contexts = [doc.content for doc in retrieved_docs]
-    context_evaluator = ContextRelevanceEvaluator()
-    context_relevance_result = context_evaluator.run(
-        questions=[question for _ in range(len(contexts))], contexts=contexts
-    )
-    print(f"Context Relevance Score: {context_relevance_result['score']:.2f}")
+    questions = [question] * len(contexts)
 
-    return response
+    context_result = ContextRelevanceEvaluator().run(
+        questions=questions, contexts=contexts
+    )
+    faithfulness_result = FaithfulnessEvaluator().run(
+        questions=questions,
+        predicted_answers=[response] * len(contexts),
+        contexts=contexts,
+    )
+
+    return {
+        "question": question,
+        "correct_answer": correct_answer,
+        "yes_no_answer": yes_no_answer,
+        "full_response": response,
+        "context_relevance": {
+            "individual": context_result["individual_scores"],
+            "average": context_result["score"],
+        },
+        "faithfulness": {"score": faithfulness_result["score"]},
+        "documents_used": [doc.meta["pmid"] for doc in retrieved_docs],
+    }
+
+
+def pretty_format_evaluation(result: dict) -> str:
+    output = [
+        f"Question: {result['question']}",
+    ]
+
+    if result.get("correct_answer") is not None:
+        output.append(f"Correct Answer: {result['correct_answer']}")
+    if result.get("yes_no_answer") is not None:
+        output.append(f"Yes/No Answer: {result['yes_no_answer']}")
+
+    output.extend(
+        [
+            f"\nFull Response:\n{result['full_response']}\n",
+            f"Context Relevance:",
+            f" - Individual Scores: {result['context_relevance']['individual']}",
+            f" - Average Score: {result['context_relevance']['average']:.2f}",
+            f"Faithfulness Score: {result['faithfulness']['score']:.2f}",
+            f"Documents Used: {result['documents_used']}",
+        ]
+    )
+
+    return "\n".join(output)
 
 
 def main():
@@ -158,7 +201,8 @@ def main():
         question = input("question: ")
         if question.strip() == "end":
             break
-        answer = ask_AI(question)
+        # answer = ask_AI(question)
+        answer = pretty_format_evaluation(eval_AI(question))
         print(answer)
 
 
