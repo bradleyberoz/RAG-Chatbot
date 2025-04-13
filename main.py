@@ -89,11 +89,50 @@ def setup_AI(documents):
     return rag_pipeline
 
 
-def ask_AI(question):
+def ask_AI(question, question_type="open"):
+    if question_type == "open":
+        prompt_template = """
+        You are an expert scientific research assistant. Your answers must be:
+        - Factually accurate based solely on the provided context
+        - Detailed and comprehensive
+        - Include citations to the source documents
+        
+        If the context doesn't contain enough information to answer properly, say "I don't have enough information to answer this question definitively."
+        
+        Context:
+        {% for doc in documents %}
+        ---
+        Document ID: {{ doc.meta.pmid }}
+        Title: {{ doc.meta.title }}
+        
+        Content:
+        {{ doc.content }}
+        {% endfor %}
+                
+        Question: {{question}}
+        Answer:
+        """
+    elif question_type == "yes_no":
+        prompt_template = """
+        Answer the question based on the provided PubMed abstracts.
+        Your answer should be one of: 'yes', 'no', or 'maybe'.
+
+        Also provide the full reasoning for your answer.
+
+        Context:
+        {% for doc in documents %}
+            {{ doc.content }}
+        {% endfor %}
+
+        Question: {{question}}
+
+        Answer:
+        """
+
     results = rag_pipeline.run(
         {
             "text_embedder": {"text": question},
-            "prompt_builder": {"question": question},
+            "prompt_builder": {"question": question, "template": prompt_template},
         },
         include_outputs_from=["retriever"],
     )
