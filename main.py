@@ -1,7 +1,7 @@
 import json
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
-from data_acquisition import RAG_QueryUser, RAG_ProcessInputToSearchable, RAG_RetrievePubMedArticles, RAG_RetrieveArticleDetails
+from data_acquisition import RAG_ProcessInputToSearchable, RAG_RetrievePubMedArticles, RAG_RetrieveArticleDetails
 from rag import setup_AI, ask_AI, build_pubmedapi_documents
 
 class MedicalResearchAssistantApp:
@@ -35,31 +35,56 @@ class MedicalResearchAssistantApp:
             messagebox.showwarning("Input Error", "Please enter a question.")
             return
 
+        # Show processing message
+        self.answer_area.insert(tk.END, f"Processing your question: {question}\n")
+        self.answer_area.see(tk.END)
+        self.root.update()  # Update the UI to show the processing message
+
         # Generate dataset and set up RAG pipeline if not already done
         if not self.dataset_ready:
-            self.generate_dataset_and_setup_pipeline()
-
-        if not self.rag_pipeline:
-            messagebox.showerror("Error", "Failed to set up the RAG pipeline.")
-            return
+            self.answer_area.insert(tk.END, "Generating dataset for the first time. This may take a moment...\n")
+            self.answer_area.see(tk.END)
+            self.root.update()
+            
+            self.generate_dataset_and_setup_pipeline(question)
+            
+            if not self.dataset_ready:
+                return  # Exit if dataset generation failed
 
         # Get the answer from the RAG model
         try:
             answer = ask_AI(question)
-            self.answer_area.insert(tk.END, f"Q: {question}\nA: {answer}\n\n")
+            self.answer_area.insert(tk.END, f"\nAnswer: {answer}\n\n")
             self.answer_area.see(tk.END)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to get an answer: {e}")
+            self.answer_area.insert(tk.END, f"Error: {str(e)}\n\n")
+            self.answer_area.see(tk.END)
 
-    def generate_dataset_and_setup_pipeline(self):
+    def generate_dataset_and_setup_pipeline(self, user_input):
         try:
-            # Step 1: Run the Medical Chatbot to generate the dataset
-            user_input = RAG_QueryUser()
+            # Step 1: Process the user input directly from the UI
+            self.answer_area.insert(tk.END, "Processing your query...\n")
+            self.root.update()
+            
             searchable_query = RAG_ProcessInputToSearchable(user_input)
+            
+            self.answer_area.insert(tk.END, "Retrieving relevant medical articles...\n")
+            self.root.update()
+            
             pmids = RAG_RetrievePubMedArticles(searchable_query)
+            
+            if not pmids:
+                self.answer_area.insert(tk.END, "No relevant articles found. Please try a different query.\n\n")
+                return
+                
+            self.answer_area.insert(tk.END, f"Found {len(pmids)} relevant articles. Retrieving details...\n")
+            self.root.update()
 
             articles_info = {}
-            for pmid in pmids:
+            for i, pmid in enumerate(pmids):
+                self.answer_area.insert(tk.END, f"Processing article {i+1}/{len(pmids)}...\r")
+                self.root.update()
                 article_info = RAG_RetrieveArticleDetails(pmid)
                 articles_info.update(article_info)
 
@@ -67,12 +92,21 @@ class MedicalResearchAssistantApp:
             with open(articles_json_path, 'w') as json_file:
                 json.dump(articles_info, json_file, indent=4)
 
+            self.answer_area.insert(tk.END, "Setting up AI model with retrieved data...\n")
+            self.root.update()
+            
             # Step 2: Set up the RAG pipeline
             documents = build_pubmedapi_documents(articles_json_path)
             self.rag_pipeline = setup_AI(documents)
             self.dataset_ready = True  # Mark the dataset as ready
+            
+            self.answer_area.insert(tk.END, "Dataset ready! Processing your question now...\n")
+            self.root.update()
+            
         except Exception as e:
             messagebox.showerror("Error", f"Failed to generate dataset and set up pipeline: {e}")
+            self.answer_area.insert(tk.END, f"Error generating dataset: {str(e)}\n\n")
+            self.answer_area.see(tk.END)
 
 
 if __name__ == "__main__":

@@ -89,7 +89,7 @@ Inputs:       searchable_query     - Searchable query string for research articl
 Ouputs:       None
 Returns       pmids                - A .json of PMIDs
 """
-def RAG_RetrievePubMedArticles(searchable_query, max_results=20):
+def RAG_RetrievePubMedArticles(searchable_query, max_results=50):
     # PubMedAPI endpoint
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 
