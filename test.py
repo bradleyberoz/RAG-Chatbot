@@ -32,8 +32,9 @@ def evaluate_pubmedqa(pubmedqa_path, num_questions):
             correct += 1
 
         print()
-
-        print(rag.pretty_format_evaluation(output))
+        output = rag.pretty_format_evaluation(output)
+        print(f"Q{i+1}")
+        print(output)
         outputs.append(output)
 
     # save output to file
@@ -52,16 +53,16 @@ def eval_custom(question: str):
 
 if __name__ == "__main__":
     global rag_pipeline
-    # pubmedqa_path = "ori_pqal.json"
-    # documents = document_builders.build_pubmedqa_documents(pubmedqa_path)
-    # rag_pipeline = rag.setup_AI(documents)
-    # evaluate_pubmedqa(pubmedqa_path, 2)
+    pubmedqa_path = "ori_pqal.json"
+    documents = document_builders.build_pubmedqa_documents(pubmedqa_path)
+    rag_pipeline = rag.setup_AI(documents)
+    evaluate_pubmedqa(pubmedqa_path, 20)
 
-    with open("retrieved_articles.json") as file:
-        data = json.load(file)
-        for i, question in enumerate(data):
-            if i == 1:
-                break
-            documents = document_builders.qa_docs(data[question])
-            rag_pipeline = rag.setup_AI(documents)
-            eval_custom(question)
+    # with open("retrieved_articles.json") as file:
+    #     data = json.load(file)
+    #     for i, question in enumerate(data):
+    #         if i == 1:
+    #             break
+    #         documents = document_builders.qa_docs(data[question])
+    #         rag_pipeline = rag.setup_AI(documents)
+    #         eval_custom(question)

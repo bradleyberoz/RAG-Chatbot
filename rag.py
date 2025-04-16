@@ -65,19 +65,39 @@ def setup_AI(documents: list[Document]):
             Answer:
             """,
         "yes_no": """
-            Answer the question based on the provided PubMed abstracts.
-            Your answer should be one of: 'yes', 'no', or 'maybe'.
+            You are a scientific research assistant tasked with answering biomedical questions based solely on the provided context. Follow these instructions carefully:
 
-            Also provide the full reasoning for your answer.
+            - Your response must include three clearly labeled sections: ANSWER, RATIONALE, and REFERENCES.
+            - The ANSWER section must contain only one of the following: "Yes", "No", "Maybe", or “I don’t know”.
+            - The RATIONALE must explain how the answer was derived from the context, citing specific findings.
+            - The REFERENCES section must list the titles of the source documents that support the answer.
+            - Do not use any external knowledge beyond the provided documents.
+            - If the context does not contain enough information to answer definitively, state "I don’t know" in the ANSWER section and explain why in the RATIONALE.
+
+            Use the following format exactly:
+
+            ANSWER:
+            [Yes/No/Maybe]
+
+            RATIONALE:
+            [Explain your reasoning based on the documents above.]
+
+            REFERENCES:
+            - [Title of Document 1]
+            - [Title of Document 2]
+            ...
 
             Context:
             {% for doc in documents %}
-                {{ doc.content }}
+            ---
+            Document ID: {{ doc.meta.pmid }}
+            Title: {{ doc.meta.title }}
+
+            Content:
+            {{ doc.content }}
             {% endfor %}
 
             Question: {{question}}
-
-            Answer:
             """,
     }
 
@@ -181,7 +201,7 @@ def eval_AI(question: str, question_type="yes_no", correct_answer=None):
             "score":
                 A score (0 to 1) representing how well the answer aligns with the retrieved documents.
 
-        "documents_used":
+        "documents_retrieved":
             A list of document PMIDs that were used to generate the answer.
 
     """
@@ -190,11 +210,12 @@ def eval_AI(question: str, question_type="yes_no", correct_answer=None):
     response = result["llm"]["replies"][0]
 
     if question_type == "yes_no":
-        first_line = response.splitlines()[0].lower()
+        line = response.splitlines()[1].lower()
+        # first_line = response.splitlines()[0].lower()
         yes_no_answer = "maybe"
-        if "yes" in first_line:
+        if "yes" in line:
             yes_no_answer = "yes"
-        elif "no" in first_line:
+        elif "no" in line:
             yes_no_answer = "no"
     else:
         yes_no_answer = None
@@ -223,7 +244,7 @@ def eval_AI(question: str, question_type="yes_no", correct_answer=None):
             "average": context_result["score"],
         },
         "faithfulness": {"score": faithfulness_result["score"]},
-        "documents_used": [doc.meta["pmid"] for doc in retrieved_docs],
+        "documents_retrieved": [doc.meta["pmid"] for doc in retrieved_docs],
     }
 
 
@@ -247,7 +268,7 @@ def pretty_format_evaluation(result: dict) -> str:
             f" - Individual Scores: {result['context_relevance']['individual']}",
             f" - Average Score: {result['context_relevance']['average']:.2f}",
             f"Faithfulness Score: {result['faithfulness']['score']:.2f}",
-            f"Documents Used: {result['documents_used']}",
+            f"Documents Retrieved: {result['documents_retrieved']}",
         ]
     )
 
