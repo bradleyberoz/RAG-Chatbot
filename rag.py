@@ -102,7 +102,7 @@ def setup_AI(documents: list[Document]):
     return rag_pipeline
 
 
-def ask_AI(question: str, question_type="open") -> str:
+def ask_AI(question: str, question_type="yes_no") -> str:
     """
     Ask a question to RAG
 
@@ -120,7 +120,7 @@ def ask_AI(question: str, question_type="open") -> str:
     return response
 
 
-def run_pipeline(question: str, question_type="open"):
+def run_pipeline(question: str, question_type="yes_no"):
     """
     Run the RAG pipeline with a specific prompt template.
 
@@ -142,7 +142,7 @@ def run_pipeline(question: str, question_type="open"):
     )
 
 
-def eval_AI(question: str, question_type="open", correct_answer=None):
+def eval_AI(question: str, question_type="yes_no", correct_answer=None):
     """
     Run evaluation for a given question.
 
