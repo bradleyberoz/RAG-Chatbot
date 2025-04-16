@@ -1,5 +1,3 @@
-import json
-
 from dotenv import load_dotenv
 from haystack import Document, Pipeline
 from haystack.components.builders.prompt_builder import PromptBuilder
@@ -9,15 +7,12 @@ from haystack.components.embedders import (
 )
 from haystack.components.evaluators import (
     ContextRelevanceEvaluator,
-    DocumentMAPEvaluator,
     FaithfulnessEvaluator,
 )
 from haystack.components.generators import OpenAIGenerator
-from haystack.components.retrievers.in_memory import (
-    InMemoryBM25Retriever,
-    InMemoryEmbeddingRetriever,
-)
+from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+
 from document_builders import build_pubmedapi_documents
 
 load_dotenv()
@@ -40,10 +35,10 @@ def setup_AI(documents: list[Document]):
     )
     document_embedder.warm_up()
 
-    documnets_with_embeddings = document_embedder.run(documents)
+    documents_with_embeddings = document_embedder.run(documents)
 
     document_store = InMemoryDocumentStore()
-    document_store.write_documents(documnets_with_embeddings["documents"])
+    document_store.write_documents(documents_with_embeddings["documents"])
 
     # prompt templates
     global prompt_templates
@@ -118,14 +113,14 @@ def ask_AI(question: str, question_type="open") -> str:
     Returns:
         The LLM-generated answer string.
     """
-    results = run_pipline(question, question_type)
+    results = run_pipeline(question, question_type)
 
     response = results["llm"]["replies"][0]
 
     return response
 
 
-def run_pipline(question: str, question_type="open"):
+def run_pipeline(question: str, question_type="open"):
     """
     Run the RAG pipeline with a specific prompt template.
 
@@ -190,7 +185,7 @@ def eval_AI(question: str, question_type="open", correct_answer=None):
             A list of document PMIDs that were used to generate the answer.
 
     """
-    result = run_pipline(question, question_type)
+    result = run_pipeline(question, question_type)
 
     response = result["llm"]["replies"][0]
 
