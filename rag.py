@@ -44,35 +44,49 @@ def setup_AI(documents: list[Document]):
     global prompt_templates
     prompt_templates = {
         "open": """
-            You are an expert scientific research assistant. Your answers must be:
-            - Factually accurate based solely on the provided context
-            - Detailed and comprehensive
-            - Include citations to the source documents
-            
-            If the context doesn't contain enough information to answer properly, say "I don't have enough information to answer this question definitively."
-            
+            You are a scientific research assistant tasked with answering biomedical questions based solely on the provided context. Follow these instructions carefully:
+
+            - Your response must include three clearly labeled sections: ANSWER, RATIONALE, and REFERENCES.
+            - The ANSWER section must provide a clear, concise, and informative response to the question in your own words.
+            - The RATIONALE must explain how your answer was derived from the context, citing specific findings and reasoning from the documents.
+            - The REFERENCES section must list the titles of the source documents that support your answer.
+            - Do not use any external knowledge beyond the provided documents.
+            - If the context does not contain enough information to answer definitively, state "I don't know" in the ANSWER section and explain why in the RATIONALE.
+
+            Use the following format exactly:
+
+            ANSWER:
+            [Your complete, freeform answer to the question.]
+
+            RATIONALE:
+            [Explain your reasoning based on the documents above.]
+
+            REFERENCES:
+            - [Title of Document 1]
+            - [Title of Document 2]
+            ...
+
             Context:
             {% for doc in documents %}
             ---
             Document ID: {{ doc.meta.pmid }}
             Title: {{ doc.meta.title }}
-            
+
             Content:
             {{ doc.content }}
             {% endfor %}
-                    
+
             Question: {{question}}
-            Answer:
             """,
         "yes_no": """
             You are a scientific research assistant tasked with answering biomedical questions based solely on the provided context. Follow these instructions carefully:
 
             - Your response must include three clearly labeled sections: ANSWER, RATIONALE, and REFERENCES.
-            - The ANSWER section must contain only one of the following: "Yes", "No", "Maybe", or “I don’t know”.
+            - The ANSWER section must contain only one of the following: "Yes", "No", "Maybe", or "I don't know".
             - The RATIONALE must explain how the answer was derived from the context, citing specific findings.
             - The REFERENCES section must list the titles of the source documents that support the answer.
             - Do not use any external knowledge beyond the provided documents.
-            - If the context does not contain enough information to answer definitively, state "I don’t know" in the ANSWER section and explain why in the RATIONALE.
+            - If the context does not contain enough information to answer definitively, state "I don't know" in the ANSWER section and explain why in the RATIONALE.
 
             Use the following format exactly:
 
@@ -122,7 +136,7 @@ def setup_AI(documents: list[Document]):
     return rag_pipeline
 
 
-def ask_AI(question: str, question_type="yes_no") -> str:
+def ask_AI(question: str, question_type: str | None = None) -> str:
     """
     Ask a question to RAG
 
@@ -133,6 +147,9 @@ def ask_AI(question: str, question_type="yes_no") -> str:
     Returns:
         The LLM-generated answer string.
     """
+    if question_type == None:
+        question_type = determine_type(question)
+
     results = run_pipeline(question, question_type)
 
     response = results["llm"]["replies"][0]
@@ -212,11 +229,14 @@ def eval_AI(question: str, question_type="yes_no", correct_answer=None):
     if question_type == "yes_no":
         line = response.splitlines()[1].lower()
         # first_line = response.splitlines()[0].lower()
-        yes_no_answer = "maybe"
         if "yes" in line:
             yes_no_answer = "yes"
+        elif "i don't know" in line:
+            yes_no_answer = "idk"
         elif "no" in line:
             yes_no_answer = "no"
+        elif "maybe" in line:
+            yes_no_answer = "maybe"
     else:
         yes_no_answer = None
 
@@ -273,6 +293,30 @@ def pretty_format_evaluation(result: dict) -> str:
     )
 
     return "\n".join(output)
+
+
+def determine_type(question):
+    question_type_prompt = """
+        Classify the following question as either 'yes_no' or 'open'.
+
+        Question: {{question}}
+
+        Answer with only one word: yes_no or open
+
+    """
+
+    type_prompt_builder = PromptBuilder(template=question_type_prompt)
+    type_llm = OpenAIGenerator(model="gpt-3.5-turbo")
+
+    type_classifier = Pipeline()
+    type_classifier.add_component("prompt_builder", type_prompt_builder)
+    type_classifier.add_component("llm", type_llm)
+    type_classifier.connect("prompt_builder.prompt", "llm")
+
+    result = type_classifier.run(data={"question": question})
+    question_type = result["llm"]["replies"][0].strip().lower()
+
+    return question_type
 
 
 def main():
