@@ -138,11 +138,13 @@ def setup_AI(documents: list[Document]):
 
 def ask_AI(question: str, question_type: str | None = None) -> str:
     """
-    Ask a question to RAG
+    Ask a question using the RAG pipeline.
 
+    If the question type is not specified, it will be automatically classified
+    as either "yes_no" or "open"
     Args:
-        question: The user question.
-        question_type: 'open' or 'yes_no'.
+        question: The user's input question.
+        question_type: Optional. If known, specify 'yes_no' or 'open'.
 
     Returns:
         The LLM-generated answer string.
@@ -296,6 +298,15 @@ def pretty_format_evaluation(result: dict) -> str:
 
 
 def determine_type(question):
+    """
+    Classify a question as either 'yes_no' or 'open'.
+
+    Args:
+        question: A single question as a string.
+
+    Returns:
+        A string: either 'yes_no' or 'open'.
+    """
     question_type_prompt = """
         Classify the following question as either 'yes_no' or 'open'.
 
